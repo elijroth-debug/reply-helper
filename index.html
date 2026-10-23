@@ -120,7 +120,7 @@
 
     <label for="model">Model</label>
     <input id="model" type="text" autocapitalize="off" spellcheck="false">
-    <p class="hint">Leave as is unless Google retires it. If you see a "model not found" error, try gemini-flash-latest.</p>
+    <p class="hint">Leave as is unless Google retires it. If you see a "model not found" error, try gemini-3.6-flash or gemini-3.5-flash.</p>
 
     <div class="row">
       <button id="saveBtn" class="primary" type="button">Save</button>
@@ -132,7 +132,7 @@
 </main>
 
 <script>
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-3.8-flash";
 
 const BASE_INSTRUCTIONS = `You help me reply to text messages from my ex, Heather, using the BIFF method: Brief, Informative, Friendly, Firm. Communication with her is draining for me, so your job is to give me calm, ready-to-send replies.
 
@@ -187,7 +187,9 @@ function show(view) {
 function loadSettings() {
   $("apiKey").value = store.get("apiKey");
   $("details").value = store.get("details");
-  $("model").value = store.get("model", DEFAULT_MODEL);
+  let m = store.get("model", DEFAULT_MODEL);
+  if (m === "gemini-2.5-flash") m = DEFAULT_MODEL;
+  $("model").value = m;
 }
 
 $("settingsBtn").onclick = () => { loadSettings(); show("settings"); };
@@ -259,7 +261,6 @@ $("goBtn").onclick = async () => {
         systemInstruction: { parts: [{ text: system }] },
         contents: [{ role: "user", parts: [{ text: "Message from Heather:\n\n" + message }] }],
         generationConfig: {
-          temperature: 0.4,
           responseMimeType: "application/json",
           responseSchema: SCHEMA
         }
@@ -270,7 +271,7 @@ $("goBtn").onclick = async () => {
       let detail = "";
       try { detail = (await res.json()).error?.message || ""; } catch (e) {}
       if (res.status === 400 && /API key/i.test(detail)) throw new Error("Gemini rejected your API key. Check it in Settings.");
-      if (res.status === 404) throw new Error("Model not found. In Settings, try gemini-flash-latest.");
+      if (res.status === 404) throw new Error("Model not found. In Settings, try gemini-3.6-flash or gemini-3.5-flash.");
       if (res.status === 429) throw new Error("Rate limit reached. Wait a minute and try again.");
       throw new Error(detail || `Request failed (${res.status}).`);
     }
