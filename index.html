@@ -253,8 +253,13 @@ $("goBtn").onclick = async () => {
   $("goBtn").disabled = true;
   setStatus("Writing…");
 
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+  // Try the chosen model first, then fall back to others if Google is overloaded.
+  const FALLBACKS = ["gemini-3.6-flash", "gemini-3.5-flash"];
+  const chain = [model, ...FALLBACKS.filter(m => m !== model)];
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  async function callModel(name) {
+    return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(name)}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
@@ -266,6 +271,20 @@ $("goBtn").onclick = async () => {
         }
       })
     });
+  }
+
+  try {
+    let res = null;
+    for (let i = 0; i < chain.length; i++) {
+      setStatus(i === 0 ? "Writing…" : "Busy. Trying another model…");
+      res = await callModel(chain[i]);
+      if (res.status === 503 || res.status === 500) {
+        await sleep(1500);
+        res = await callModel(chain[i]);   // one quick retry on the same model
+      }
+      // Move to the next model only for overload or missing model
+      if (res.ok || !(res.status === 503 || res.status === 500 || res.status === 404 || res.status === 429)) break;
+    }
 
     if (!res.ok) {
       let detail = "";
@@ -273,6 +292,7 @@ $("goBtn").onclick = async () => {
       if (res.status === 400 && /API key/i.test(detail)) throw new Error("Gemini rejected your API key. Check it in Settings.");
       if (res.status === 404) throw new Error("Model not found. In Settings, try gemini-3.6-flash or gemini-3.5-flash.");
       if (res.status === 429) throw new Error("Rate limit reached. Wait a minute and try again.");
+      if (res.status === 503 || res.status === 500) throw new Error("Google's servers are busy right now. Wait a minute and try again.");
       throw new Error(detail || `Request failed (${res.status}).`);
     }
 
