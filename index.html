@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#161b20">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Reply Helper">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Reply Helper</title>
+<style>
+  :root {
+    --bg: #f3f4f2;
+    --surface: #ffffff;
+    --line: #d9dcd8;
+    --text: #1d2327;
+    --muted: #5c666c;
+    --accent: #2f6f62;
+    --accent-ink: #ffffff;
+    --warn: #8a5a12;
+    --warn-bg: #f6ecd8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161b20;
+      --surface: #1f262c;
+      --line: #313a42;
+      --text: #e9e8e4;
+      --muted: #9aa5ac;
+      --accent: #7fb7a8;
+      --accent-ink: #11201c;
+      --warn: #e5c27a;
+      --warn-bg: #2d2717;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+    min-height: 100vh;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 16px 16px 40px; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  h1 { font-size: 1.15rem; font-weight: 650; margin: 0; letter-spacing: 0.01em; }
+  button { font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 10px 14px; }
+  button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 650; }
+  .primary[disabled] { opacity: 0.6; cursor: default; }
+  .ghost { background: transparent; }
+  textarea, input[type=text], input[type=password] {
+    width: 100%; font: inherit; color: var(--text); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+  }
+  textarea { resize: vertical; min-height: 120px; }
+  label { display: block; font-weight: 600; margin: 16px 0 6px; }
+  .hint { color: var(--muted); font-size: 0.88rem; margin: 4px 0 0; }
+  .row { display: flex; gap: 10px; margin-top: 10px; }
+  .row > * { flex: 1; }
+  .row .narrow { flex: 0 0 auto; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-top: 14px; }
+  .card h2 { font-size: 0.95rem; margin: 0 0 6px; color: var(--muted); font-weight: 600; }
+  .reply { white-space: pre-wrap; font-size: 1.05rem; margin: 0 0 12px; }
+  .note { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 12px; margin-top: 14px; font-size: 0.95rem; }
+  .err { color: #b3261e; margin-top: 12px; }
+  @media (prefers-color-scheme: dark) { .err { color: #f2a29b; } }
+  .hidden { display: none; }
+  .status { color: var(--muted); margin-top: 12px; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Reply Helper</h1>
+    <button id="settingsBtn" class="ghost" type="button" aria-label="Settings">Settings</button>
+  </header>
+
+  <!-- Main view -->
+  <section id="mainView">
+    <label for="incoming" style="margin-top:0">Message to reply to</label>
+    <textarea id="incoming" placeholder="Paste the text here"></textarea>
+    <div class="row">
+      <button id="pasteBtn" class="narrow" type="button">Paste</button>
+      <button id="clearBtn" class="narrow ghost" type="button">Clear</button>
+      <button id="goBtn" class="primary" type="button">Write reply</button>
+    </div>
+    <div id="status" class="status hidden" role="status"></div>
+    <div id="error" class="err hidden" role="alert"></div>
+
+    <div id="results" class="hidden">
+      <div class="card">
+        <h2>Standard</h2>
+        <p class="reply" id="standardText"></p>
+        <button class="copyBtn" data-target="standardText" type="button">Copy</button>
+      </div>
+      <div class="card">
+        <h2>Shorter and firmer</h2>
+        <p class="reply" id="firmText"></p>
+        <button class="copyBtn" data-target="firmText" type="button">Copy</button>
+      </div>
+    </div>
+    <div id="noteBox" class="note hidden"></div>
+  </section>
+
+  <!-- Settings view -->
+  <section id="settingsView" class="hidden">
+    <label for="apiKey">Gemini API key</label>
+    <input id="apiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your key">
+    <p class="hint">Get a free key at aistudio.google.com/apikey using your personal Google account. It is saved only on this device.</p>
+
+    <label for="details">Your details</label>
+    <textarea id="details" placeholder="Example: Exchanges are Sundays at 6pm at the school parking lot. Ben's soccer practice is Tuesdays and Thursdays. We split medical costs 50/50. Avoid topics: her relationships, money not related to Ben."></textarea>
+    <p class="hint">Anything here is added to the instructions, so replies match your real schedule and agreements.</p>
+
+    <label for="model">Model</label>
+    <input id="model" type="text" autocapitalize="off" spellcheck="false">
+    <p class="hint">Leave as is unless Google retires it. If you see a "model not found" error, try gemini-flash-latest.</p>
+
+    <div class="row">
+      <button id="saveBtn" class="primary" type="button">Save</button>
+      <button id="backBtn" type="button">Back</button>
+    </div>
+    <hr>
+    <p class="hint">Privacy: the text you paste is sent to Google's Gemini API to write the reply. Nothing is stored on any server of mine, and nothing is saved on this device except your key and settings. The free tier of the Gemini API may allow Google to use submitted content to improve its products. A paid key turns that off.</p>
+  </section>
+</main>
+
+<script>
+const DEFAULT_MODEL = "gemini-2.5-flash";
+
+const BASE_INSTRUCTIONS = `You help me reply to text messages from my ex, Heather, using the BIFF method: Brief, Informative, Friendly, Firm. Communication with her is draining for me, so your job is to give me calm, ready-to-send replies.
+
+CONTEXT
+- Heather and I share one son, Ben, who is 15. We have 50/50 custody.
+- Almost all necessary communication is about Ben: schedule and exchanges, school, activities, medical appointments, expenses, and his plans.
+- Never draft anything that uses Ben to carry messages, criticizes Heather in a way Ben could see, or asks him to take sides.
+
+WHEN GIVEN A MESSAGE FROM HEATHER:
+1. Identify what actually needs a response: logistics, questions, scheduling, requests. Ignore bait, insults, guilt trips, old grievances, and sarcasm.
+2. Draft a reply:
+   - BRIEF: 1-3 sentences. No justifying, explaining, or defending me.
+   - INFORMATIVE: Only relevant facts (dates, times, yes/no). No opinions or emotional content.
+   - FRIENDLY: Neutral and civil. No sarcasm, no passive aggression, and no warmth that could be read as an invitation to keep talking.
+   - FIRM: Clear and final. No open-ended questions, no invitations to debate, no apologies unless genuinely warranted.
+3. Never JADE (Justify, Argue, Defend, Explain). Never mirror her tone. Never respond to accusations. If the message has nothing actionable, set needs_response to false and leave both replies empty.
+4. Give two versions: "standard" and a shorter, firmer one called "firm".
+5. "note" is one short line for me, such as "save this for records", "needs a decision from you first", "Ben should weigh in on this directly", or "no response needed".
+
+SPECIAL CASES
+- Schedule changes: confirm or decline with the specific date/time. Don't explain why. If a fact is missing, put the question to me in "note" and write the reply with a clear placeholder in [brackets].
+- Money: stick to amounts and dates, and note if it should follow our agreement rather than be negotiated by text.
+- Decisions about Ben: acknowledge, state my position in one sentence.
+- Safety, emergencies, or Ben's wellbeing: reply promptly and plainly, and start the note with "URGENT".
+- Accusations or threats: don't engage. Note that I should save the message and consider talking to my attorney.
+
+Write in my voice: plain, calm, direct. Output only the requested JSON.`;
+
+const SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    needs_response: { type: "BOOLEAN" },
+    standard: { type: "STRING" },
+    firm: { type: "STRING" },
+    note: { type: "STRING" }
+  },
+  required: ["needs_response", "standard", "firm", "note"]
+};
+
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d = "") { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+};
+
+function show(view) {
+  $("mainView").classList.toggle("hidden", view !== "main");
+  $("settingsView").classList.toggle("hidden", view !== "settings");
+  $("settingsBtn").classList.toggle("hidden", view === "settings");
+}
+
+function loadSettings() {
+  $("apiKey").value = store.get("apiKey");
+  $("details").value = store.get("details");
+  $("model").value = store.get("model", DEFAULT_MODEL);
+}
+
+$("settingsBtn").onclick = () => { loadSettings(); show("settings"); };
+$("backBtn").onclick = () => show("main");
+$("saveBtn").onclick = () => {
+  store.set("apiKey", $("apiKey").value.trim());
+  store.set("details", $("details").value.trim());
+  store.set("model", $("model").value.trim() || DEFAULT_MODEL);
+  show("main");
+};
+
+$("clearBtn").onclick = () => {
+  $("incoming").value = "";
+  resetOutput();
+  $("incoming").focus();
+};
+
+$("pasteBtn").onclick = async () => {
+  try {
+    const t = await navigator.clipboard.readText();
+    if (t) { $("incoming").value = t; }
+  } catch (e) {
+    setError("Your browser blocked clipboard access. Long-press in the box and choose Paste.");
+  }
+};
+
+document.querySelectorAll(".copyBtn").forEach(btn => {
+  btn.onclick = async () => {
+    const text = $(btn.dataset.target).textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      const old = btn.textContent;
+      btn.textContent = "Copied";
+      setTimeout(() => (btn.textContent = old), 1500);
+    } catch (e) {
+      setError("Couldn't copy automatically. Long-press the reply to select it.");
+    }
+  };
+});
+
+function resetOutput() {
+  $("results").classList.add("hidden");
+  $("noteBox").classList.add("hidden");
+  $("error").classList.add("hidden");
+  $("status").classList.add("hidden");
+}
+function setError(msg) { const e = $("error"); e.textContent = msg; e.classList.remove("hidden"); }
+function setStatus(msg) { const s = $("status"); s.textContent = msg; s.classList.toggle("hidden", !msg); }
+
+$("goBtn").onclick = async () => {
+  resetOutput();
+  const message = $("incoming").value.trim();
+  const key = store.get("apiKey");
+  if (!key) { loadSettings(); show("settings"); return; }
+  if (!message) { setError("Paste a message first."); return; }
+
+  const details = store.get("details");
+  const system = BASE_INSTRUCTIONS + (details ? `\n\nMY FIXED DETAILS (use these for facts):\n${details}` : "");
+  const model = store.get("model", DEFAULT_MODEL) || DEFAULT_MODEL;
+
+  $("goBtn").disabled = true;
+  setStatus("Writing…");
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: "user", parts: [{ text: "Message from Heather:\n\n" + message }] }],
+        generationConfig: {
+          temperature: 0.4,
+          responseMimeType: "application/json",
+          responseSchema: SCHEMA
+        }
+      })
+    });
+
+    if (!res.ok) {
+      let detail = "";
+      try { detail = (await res.json()).error?.message || ""; } catch (e) {}
+      if (res.status === 400 && /API key/i.test(detail)) throw new Error("Gemini rejected your API key. Check it in Settings.");
+      if (res.status === 404) throw new Error("Model not found. In Settings, try gemini-flash-latest.");
+      if (res.status === 429) throw new Error("Rate limit reached. Wait a minute and try again.");
+      throw new Error(detail || `Request failed (${res.status}).`);
+    }
+
+    const data = await res.json();
+    const raw = data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+    if (!raw) throw new Error("Gemini returned no text. It may have blocked the message. Try rewording or trying again.");
+    const out = JSON.parse(raw.replace(/```json|```/g, "").trim());
+
+    setStatus("");
+    if (out.needs_response && (out.standard || out.firm)) {
+      $("standardText").textContent = out.standard || "";
+      $("firmText").textContent = out.firm || "";
+      $("results").classList.remove("hidden");
+    }
+    const note = out.note || (out.needs_response ? "" : "No response needed.");
+    if (note) { $("noteBox").textContent = note; $("noteBox").classList.remove("hidden"); }
+  } catch (e) {
+    setStatus("");
+    setError(e.message || "Something went wrong.");
+  } finally {
+    $("goBtn").disabled = false;
+  }
+};
+
+if (!store.get("apiKey")) { loadSettings(); show("settings"); } else { show("main"); }
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+</script>
+</body>
+</html>
